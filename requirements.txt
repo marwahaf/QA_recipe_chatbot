@@ -7,3 +7,4 @@ langchain_ollama
 langchain_text_splitters
 sentence_transformers
 torch --index-url https://download.pytorch.org/whl/cpu
+jq
