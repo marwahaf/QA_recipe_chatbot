@@ -2,7 +2,6 @@ import json
 
 import chromadb
 from langchain.chains.retrieval_qa.base import RetrievalQA
-# from langchain_community.vectorstores import Chroma
 from langchain_chroma import Chroma
 from langchain_community.document_loaders import JSONLoader
 from langchain_ollama.llms import OllamaLLM
