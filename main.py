@@ -9,19 +9,16 @@ from langchain_ollama.llms import OllamaLLM
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sentence_transformers import SentenceTransformer
 
-# Set up JSON loader with specific extraction pattern
-# jq_schema defines how to extract data from each record in the JSON file
+# Step 1: Load JSON data and extract recipe steps
 loader = JSONLoader(
     file_path="./datasets/train.json",
     jq_schema='.data[] | {recipe_id: .recipe_id, steps: (.context | map(.body) | join(" \n "))}',
     text_content=False,
-)  # Load the JSON data
+)
 data = loader.load()
-print("Data loading done! ")
+print("Data loading done!")
 
-
-# Create a text splitter to break down recipe text into manageable chunks
-# This helps with more precise retrieval and better context management
+# Step 2: Split text into chunks for better retrieval
 splitter = RecursiveCharacterTextSplitter(
     chunk_size=400,
     separators=[
@@ -39,52 +36,39 @@ splitter = RecursiveCharacterTextSplitter(
     ],
 )
 
-# Initialize lists to store processed text chunks and their metadata
-texts = []
-metadatas = []
+texts, metadatas = [], []
 
-# Process only the first 100 recipes for demonstration purposes
+# Step 3: Process data (first 100 recipes)
 for doc in data[:100]:
     doc.page_content = json.loads(doc.page_content)
     recipe_id = doc.page_content["recipe_id"]
-    # Combine recipe name with steps to ensure context is preserved
     steps = recipe_id + " " + doc.page_content["steps"]
-
-    # Split the recipe text into chunks
     chunks = splitter.split_text(steps)
-
-    # Store chunks + metadata
     texts.extend(chunks)
     metadatas.extend([{"recipe_id": recipe_id}] * len(chunks))
 
-print("Data splitting done ")
+print("Data splitting done!")
 
-
-# Initialize the embedding model from Sentence Transformers
-# This model converts text into vector embeddings for semantic search
+# Step 4: Embed text chunks for semantic search
 model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 embeddings = model.encode(texts)
+print("Text embedding done!")
 
-# Initialize ChromaDB client
+# Step 5: Initialize ChromaDB client and add documents
 recipe = chromadb.Client()
 collection = recipe.get_or_create_collection("test")
-
-# Generate unique IDs for each chunk
 ids = [f"chunk_{i}" for i in range(len(texts))]
-
-# Add documents, embeddings, and metadata to the collection
 collection.add(ids=ids, embeddings=embeddings, documents=texts, metadatas=metadatas)
+print("ChromaDB collection updated!")
 
 
+# Step 6: Test function for ChromaDB query
 def testing_function(collection):
-    """Test the ChromaDB with a sample query"""
     results = collection.query(
         query_texts="halal vanilla extract",
         n_results=2,
     )
-    # Print the results
     print("Top matching recipe chunks:")
-    print(results)
     for i, doc in enumerate(results["documents"][0]):
         recipe_name = results["metadatas"][0][i]["recipe_id"]
         print(f"\nMatch #{i + 1}: {recipe_name}")
@@ -93,23 +77,25 @@ def testing_function(collection):
 
 # testing_function(collection)
 
-# Set up HuggingFace embeddings for LangChain
+# Step 7: Set up LangChain HuggingFace embeddings
 hf_embeddings = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2"
 )
+print("HuggingFace embeddings set up!")  # Step 7 done
 
-# Initialize Chroma for LangChain using the existing ChromaDB client
+# Step 8: Initialize Chroma for LangChain
 chroma_db = Chroma(
     client=recipe, collection_name="test", embedding_function=hf_embeddings
 )
 
-# Create a question-answering chain
-# This combines the retriever with an LLM to generate answers based on retrieved context
+# Step 9: Create QA chain for querying
 qa_chain = RetrievalQA.from_chain_type(
     llm=OllamaLLM(model="tinyllama"),
     chain_type="stuff",
     retriever=chroma_db.as_retriever(),
 )
+print("QA chain created!")
 
+# Query example
 # query = "How to make vegan pasta?"
 # print(qa_chain.run(query))

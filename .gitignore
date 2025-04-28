@@ -1,6 +1,7 @@
 /__pycache__
 /venv
-/datasets
+/datasets/*
 /env
 /.venv
 /recipe_venv
+!/datasets/*.png
